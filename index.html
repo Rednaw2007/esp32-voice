@@ -217,7 +217,7 @@ Output: {"sequence":[{"action":"ON","duration_seconds":5},{"action":"OFF","durat
             "Authorization": `Bearer ${apiKey}`
           },
           body: JSON.stringify({
-            model: "gemma2-9b-it",
+            model: "openai/gpt-oss-20b",
             messages: [
               { role: "system", content: systemPrompt },
               { role: "user", content: userText }
