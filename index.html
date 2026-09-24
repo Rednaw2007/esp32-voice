@@ -1,93 +1,250 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ESP32 Voice Automation</title>
-  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
-  <style>
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      background: #121212;
-      color: #e0e0e0;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      min-height: 100vh;
-      margin: 0;
-    }
-    .card {
-      background: #1e1e1e;
-      padding: 24px;
-      border-radius: 12px;
-      box-shadow: 0 8px 24px rgba(0,0,0,0.5);
-      width: 100%;
-      max-width: 420px;
-    }
-    h2 { margin-top: 0; text-align: center; color: #fff; }
-    .field { margin-bottom: 16px; }
-    label { display: block; margin-bottom: 6px; font-size: 14px; color: #aaa; }
-    input[type="password"] {
-      width: 100%;
-      padding: 10px;
-      border-radius: 6px;
-      border: 1px solid #333;
-      background: #2a2a2a;
-      color: #fff;
-      box-sizing: border-box;
-    }
-    .mic-btn {
-      width: 100%;
-      padding: 14px;
-      background: #3b82f6;
-      color: #fff;
-      border: none;
-      border-radius: 8px;
-      font-size: 16px;
-      font-weight: bold;
-      cursor: pointer;
-      transition: background 0.2s;
-    }
-    .mic-btn.listening { background: #ef4444; }
-    .override-section { margin-top: 20px; border-top: 1px solid #333; pt: 16px; }
-    .override-grid { display: flex; gap: 10px; margin-top: 8px; }
-    .btn-on { flex: 1; background: #10b981; color: white; border: none; padding: 10px; border-radius: 6px; cursor: pointer; font-weight: bold; }
-    .btn-off { flex: 1; background: #6b7280; color: white; border: none; padding: 10px; border-radius: 6px; cursor: pointer; font-weight: bold; }
-    .status { margin-top: 16px; font-size: 14px; text-align: center; color: #888; }
-    .log { margin-top: 12px; background: #111; padding: 10px; border-radius: 6px; font-family: monospace; font-size: 12px; height: 120px; overflow-y: auto; color: #10b981; }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ESP32 Voice Automation</title>
+<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0A120F;
+    --panel:#101C17;
+    --panel-2:#0C1512;
+    --border:#22352C;
+    --border-soft:#1A2921;
+    --text:#E9EFEA;
+    --muted:#7E9389;
+    --muted-dim:#556158;
+    --amber:#E8A33D;
+    --amber-glow:rgba(232,163,61,.35);
+    --green:#4ADE80;
+    --green-glow:rgba(74,222,128,.4);
+    --red:#EF6B5E;
+    --red-glow:rgba(239,107,94,.35);
+    --mono:'IBM Plex Mono', ui-monospace, monospace;
+    --sans:'IBM Plex Sans', system-ui, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    min-height:100vh;
+    background:
+      radial-gradient(circle at 15% 8%, rgba(232,163,61,.05), transparent 40%),
+      radial-gradient(circle at 85% 90%, rgba(74,222,128,.05), transparent 45%),
+      var(--bg);
+    color:var(--text);
+    font-family:var(--sans);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:32px 18px;
+  }
+  body::before{
+    content:"";
+    position:fixed; inset:0;
+    background-image:
+      linear-gradient(var(--border-soft) 1px, transparent 1px),
+      linear-gradient(90deg, var(--border-soft) 1px, transparent 1px);
+    background-size:42px 42px;
+    opacity:.18;
+    mask-image:radial-gradient(circle at 50% 30%, black, transparent 75%);
+    pointer-events:none;
+  }
+
+  .card{
+    position:relative;
+    width:100%;
+    max-width:440px;
+    background:linear-gradient(180deg,var(--panel),var(--panel-2));
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:30px 28px 26px;
+    box-shadow:0 30px 60px -25px rgba(0,0,0,.7), inset 0 1px 0 rgba(255,255,255,.03);
+  }
+
+  .screw{position:absolute; width:6px; height:6px; border-radius:50%;
+    background:radial-gradient(circle at 35% 35%, #3a4a41, #10201a);
+    box-shadow:inset 0 0 0 1px rgba(0,0,0,.5);}
+  .screw.tl{top:12px;left:12px;} .screw.tr{top:12px;right:12px;}
+  .screw.bl{bottom:12px;left:12px;} .screw.br{bottom:12px;right:12px;}
+
+  header{display:flex; align-items:flex-start; gap:10px; margin-bottom:22px;}
+  .led{
+    width:9px; height:9px; border-radius:50%; margin-top:8px; flex-shrink:0;
+    background:var(--amber);
+    box-shadow:0 0 8px 2px var(--amber-glow);
+    transition:background .25s, box-shadow .25s;
+  }
+  .led-green{background:var(--green); box-shadow:0 0 9px 3px var(--green-glow);}
+  .led-red{background:var(--red); box-shadow:0 0 9px 3px var(--red-glow);}
+  .led-amber{background:var(--amber); box-shadow:0 0 9px 3px var(--amber-glow);}
+
+  h2{
+    font-family:var(--mono);
+    font-weight:600;
+    font-size:19px;
+    letter-spacing:.01em;
+    margin:0 0 4px;
+    color:var(--text);
+  }
+  .sub{margin:0; font-size:13px; color:var(--muted); line-height:1.5;}
+
+  .field{margin-bottom:20px;}
+  label{display:block; font-size:12px; color:var(--muted); margin-bottom:7px;}
+  input[type="password"]{
+    width:100%;
+    background:#08110D;
+    border:1px solid var(--border);
+    border-radius:6px;
+    color:var(--amber);
+    font-family:var(--mono);
+    font-size:14px;
+    letter-spacing:.08em;
+    padding:11px 13px;
+    outline:none;
+    transition:border-color .15s, box-shadow .15s;
+  }
+  input[type="password"]:focus{border-color:var(--amber); box-shadow:0 0 0 3px rgba(232,163,61,.15);}
+  input[type="password"]::placeholder{color:var(--muted-dim); letter-spacing:normal;}
+
+  .mic-btn{
+    width:100%;
+    display:flex; align-items:center; justify-content:center; gap:10px;
+    background:linear-gradient(180deg,#F0AE4D,#D68F27);
+    border:1px solid #8a621b;
+    color:#221503;
+    font-family:var(--sans);
+    font-weight:600;
+    font-size:15px;
+    padding:15px 18px;
+    border-radius:7px;
+    cursor:pointer;
+    box-shadow:0 4px 0 #7a5615, 0 8px 18px -6px rgba(232,163,61,.5);
+    transition:transform .06s, box-shadow .06s, background .2s;
+  }
+  .mic-btn:active{transform:translateY(3px); box-shadow:0 1px 0 #7a5615, 0 4px 10px -6px rgba(232,163,61,.5);}
+  .mic-btn.listening{
+    background:linear-gradient(180deg,#f27c72,#d9463a);
+    border-color:#7a1f18;
+    box-shadow:0 4px 0 #5c1712, 0 8px 18px -6px var(--red-glow);
+    animation:pulse 1.1s ease-in-out infinite;
+  }
+  @keyframes pulse{
+    0%,100%{box-shadow:0 4px 0 #5c1712, 0 0 0 0 var(--red-glow);}
+    50%{box-shadow:0 4px 0 #5c1712, 0 0 0 10px transparent;}
+  }
+
+  .divider{display:flex; align-items:center; gap:10px; margin:26px 0 16px; color:var(--muted-dim); font-size:11px;}
+  .divider::before,.divider::after{
+    content:""; flex:1; height:1px;
+    background:repeating-linear-gradient(90deg, var(--border) 0 5px, transparent 5px 9px);
+  }
+
+  .override-grid{display:flex; gap:10px;}
+  .btn-on, .btn-off{
+    flex:1;
+    display:flex; align-items:center; justify-content:center; gap:7px;
+    padding:13px 10px;
+    border-radius:7px;
+    border:1px solid var(--border);
+    font-family:var(--sans);
+    font-weight:600;
+    font-size:13px;
+    cursor:pointer;
+    transition:filter .15s, transform .06s;
+  }
+  .btn-on{
+    background:linear-gradient(180deg,#173327,#0E241B);
+    border-color:#2C5C41;
+    color:var(--green);
+  }
+  .btn-off{
+    background:linear-gradient(180deg,#241a1a,#170f0f);
+    border-color:#4a2c2c;
+    color:var(--muted);
+  }
+  .btn-on:active, .btn-off:active{transform:translateY(1px);}
+  .btn-on:hover{filter:brightness(1.15);}
+  .btn-off:hover{filter:brightness(1.3);}
+
+  .status{
+    margin-top:20px;
+    display:flex; align-items:center; gap:8px;
+    font-size:12.5px; color:var(--muted);
+  }
+  .status span.txt{font-family:var(--mono); color:var(--text);}
+
+  .log{
+    margin-top:10px;
+    background:#070D0A;
+    border:1px solid var(--border);
+    border-radius:7px;
+    padding:12px 13px;
+    height:140px;
+    overflow-y:auto;
+    font-family:var(--mono);
+    font-size:12px;
+    line-height:1.7;
+    color:var(--green);
+  }
+  .log::-webkit-scrollbar{width:7px;}
+  .log::-webkit-scrollbar-thumb{background:var(--border); border-radius:4px;}
+
+  @media (max-width:380px){ .card{padding:24px 18px 20px;} }
+</style>
 </head>
 <body>
   <div class="card">
-    <h2>ESP32 Voice Automation</h2>
-    
+    <span class="screw tl"></span><span class="screw tr"></span>
+    <span class="screw bl"></span><span class="screw br"></span>
+
+    <header>
+      <span class="led led-amber" id="headerLed"></span>
+      <div>
+        <h2 style="text-align:left;">ESP32 voice automation</h2>
+        <p class="sub">Speak a command or flip a switch — the relay does the rest.</p>
+      </div>
+    </header>
+
     <div class="field">
-      <label for="apiKey">Groq API Key</label>
+      <label for="apiKey">Groq API key</label>
       <input type="password" id="apiKey" placeholder="gsk_..." />
     </div>
 
-    <button id="micBtn" class="mic-btn">🎤 Tap to Speak</button>
+    <button id="micBtn" class="mic-btn">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v1a7 7 0 0 1-14 0v-1"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="9" y1="22" x2="15" y2="22"/></svg>
+      <span id="micLabel">Tap to speak</span>
+    </button>
 
-    <div class="override-section">
-      <label>Manual Override Controls</label>
-      <div class="override-grid">
-        <button id="btnOn" class="btn-on">⚡ TURN ON</button>
-        <button id="btnOff" class="btn-off">🛑 TURN OFF</button>
-      </div>
+    <div class="divider">manual override</div>
+
+    <div class="override-grid">
+      <button id="btnOn" class="btn-on">⚡ Turn on</button>
+      <button id="btnOff" class="btn-off">● Turn off</button>
     </div>
 
-    <div id="status" class="status">Connecting to MQTT...</div>
-    <div id="log" class="log">> System ready.<br></div>
+    <div class="status">
+      <span class="led led-amber" id="statusLed" style="width:6px;height:6px;margin-top:0;"></span>
+      <span>Status:</span>
+      <span class="txt" id="status">Connecting to MQTT…</span>
+    </div>
+    <div id="log" class="log">&gt; System ready.<br></div>
   </div>
 
   <script>
     const MQTT_TOPIC = "esp32/relay/control";
+    // HiveMQ WebSocket SSL port 8084
     const MQTT_BROKER = "wss://broker.hivemq.com:8884/mqtt";
 
     const micBtn = document.getElementById("micBtn");
+    const micLabel = document.getElementById("micLabel");
     const btnOn = document.getElementById("btnOn");
     const btnOff = document.getElementById("btnOff");
     const statusDiv = document.getElementById("status");
+    const statusLed = document.getElementById("statusLed");
+    const headerLed = document.getElementById("headerLed");
     const logDiv = document.getElementById("log");
     const apiKeyInput = document.getElementById("apiKey");
 
@@ -96,19 +253,35 @@
       logDiv.scrollTop = logDiv.scrollHeight;
     }
 
-    // Connect to MQTT Broker via WebSockets
-    const mqttClient = mqtt.connect(MQTT_BROKER);
+    function setLed(state) {
+      statusLed.className = "led led-" + state;
+      headerLed.className = "led led-" + state;
+    }
+
+    // Connect to MQTT Broker using dynamic Client ID to avoid disconnect collisions
+    const clientId = "web_client_" + Math.random().toString(16).substring(2, 10);
+    const mqttClient = mqtt.connect(MQTT_BROKER, {
+      clientId: clientId,
+      keepalive: 60,
+      reconnectPeriod: 2000
+    });
 
     mqttClient.on("connect", () => {
-      statusDiv.innerText = "MQTT Connected";
-      statusDiv.style.color = "#10b981";
-      appendLog("MQTT connected.");
+      statusDiv.innerText = "MQTT connected";
+      setLed("green");
+      appendLog("MQTT connected successfully.");
     });
 
     mqttClient.on("error", (err) => {
-      statusDiv.innerText = "MQTT Connection Error";
-      statusDiv.style.color = "#ef4444";
-      appendLog(`MQTT Error: ${err}`);
+      statusDiv.innerText = "MQTT connection error";
+      setLed("red");
+      appendLog(`MQTT Error: ${err.message || err}`);
+    });
+
+    mqttClient.on("offline", () => {
+      statusDiv.innerText = "MQTT offline";
+      setLed("amber");
+      appendLog("MQTT client went offline. Reconnecting...");
     });
 
     function sendOverrideCommand(action) {
@@ -116,16 +289,17 @@
         alert("MQTT is not connected!");
         return;
       }
-      
+
       const payload = {
         sequence: [
           { action: action, duration_seconds: 0 }
         ]
       };
-      
+
       mqttClient.publish(MQTT_TOPIC, JSON.stringify(payload));
-      appendLog(`Manual Override: Sent ${action} to ${MQTT_TOPIC}`);
-      statusDiv.innerText = `Override Executed: ${action}`;
+      appendLog(`Manual override: sent ${action} to ${MQTT_TOPIC}`);
+      statusDiv.innerText = `Override executed: ${action}`;
+      setLed(action === "ON" ? "green" : "red");
     }
 
     btnOn.addEventListener("click", () => sendOverrideCommand("ON"));
@@ -149,28 +323,29 @@
         }
         recognition.start();
         micBtn.classList.add("listening");
-        micBtn.innerText = "🎙️ Listening...";
+        micLabel.textContent = "Listening…";
       };
 
       recognition.onresult = async (event) => {
         const transcript = event.results[0][0].transcript;
         appendLog(`Heard: "${transcript}"`);
         micBtn.classList.remove("listening");
-        micBtn.innerText = "🎤 Tap to Speak";
+        micLabel.textContent = "Tap to speak";
 
         await queryGroqAI(transcript);
       };
 
       recognition.onerror = (event) => {
         appendLog(`Speech error: ${event.error}`);
-        statusDiv.innerText = "Speech Recognition Error";
+        statusDiv.innerText = "Speech recognition error";
+        setLed("red");
         micBtn.classList.remove("listening");
-        micBtn.innerText = "🎤 Tap to Speak";
+        micLabel.textContent = "Tap to speak";
       };
 
       recognition.onend = () => {
         micBtn.classList.remove("listening");
-        micBtn.innerText = "🎤 Tap to Speak";
+        micLabel.textContent = "Tap to speak";
       };
     }
 
@@ -179,8 +354,9 @@
       const apiKey = apiKeyInput.value.trim();
 
       if (!apiKey) {
-        appendLog("Error: Groq API Key is missing.");
-        statusDiv.innerText = "Missing API Key";
+        appendLog("Error: Groq API key is missing.");
+        statusDiv.innerText = "Missing API key";
+        setLed("red");
         return;
       }
 
@@ -209,7 +385,8 @@ Output: {"sequence":[{"action":"ON","duration_seconds":5},{"action":"OFF","durat
 `;
 
       try {
-        appendLog("Querying Groq AI...");
+        appendLog("Querying Groq AI…");
+        setLed("amber");
         const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
           method: "POST",
           headers: {
@@ -229,29 +406,32 @@ Output: {"sequence":[{"action":"ON","duration_seconds":5},{"action":"OFF","durat
 
         const data = await response.json();
 
-        // Check if API returned an error object from Groq
         if (data.error) {
-          appendLog(`Groq API Error: ${data.error.message || JSON.stringify(data.error)}`);
-          statusDiv.innerText = "AI Processing Failed";
+          appendLog(`Groq API error: ${data.error.message || JSON.stringify(data.error)}`);
+          statusDiv.innerText = "AI processing failed";
+          setLed("red");
           return;
         }
 
-        // Safely parse the choices array
         if (data.choices && data.choices.length > 0 && data.choices[0].message) {
           const content = data.choices[0].message.content;
           const parsedJson = JSON.parse(content);
-          
+
           mqttClient.publish(MQTT_TOPIC, JSON.stringify(parsedJson));
           appendLog(`Sent JSON to ${MQTT_TOPIC}`);
-          statusDiv.innerText = "Command Executed";
+          statusDiv.innerText = "Command executed";
+          const lastAction = parsedJson.sequence?.[parsedJson.sequence.length - 1]?.action;
+          setLed(lastAction === "OFF" ? "red" : "green");
         } else {
-          appendLog("Groq Error: Unexpected response structure.");
-          statusDiv.innerText = "AI Processing Failed";
+          appendLog("Groq error: unexpected response structure.");
+          statusDiv.innerText = "AI processing failed";
+          setLed("red");
           console.log("Full Groq Response:", data);
         }
       } catch (err) {
-        appendLog(`Groq Request Failed: ${err.message}`);
-        statusDiv.innerText = "AI Processing Failed";
+        appendLog(`Groq request failed: ${err.message}`);
+        statusDiv.innerText = "AI processing failed";
+        setLed("red");
         console.error(err);
       }
     }
